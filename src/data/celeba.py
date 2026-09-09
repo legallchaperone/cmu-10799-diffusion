@@ -238,10 +238,18 @@ class CelebADataset(Dataset):
         # TODO: write your image transforms & augmentation
 
         # Only resize if needed (dataset images are already 64x64)
-
+        if self.image_size != 64:
+            transform_list.append(
+                transforms.Resize((self.image_size, self.image_size))
+            )
         # For Data augmentation you can do something like
-        # if self.augment and self.split == "train":
-        #     transform_list.append(...)
+        if self.augment and self.split == "train":
+            transform_list.append(transforms.RandomHorizontalFlip(p=0.5))
+            
+        transform_list.extend([
+        transforms.ToTensor(),
+        transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
+    ])
 
         return transforms.Compose(transform_list)
 

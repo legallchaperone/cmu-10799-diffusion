@@ -74,6 +74,7 @@ class UNet(nn.Module):
         num_heads: int = 4,
         dropout: float = 0.1,
         use_scale_shift_norm: bool = True,
+        image_size: int = 64,
     ):
         super().__init__()
         
@@ -86,14 +87,104 @@ class UNet(nn.Module):
         self.num_heads = num_heads
         self.dropout = dropout
         self.use_scale_shift_norm = use_scale_shift_norm
-        
-        # TODO: build your own unet architecture here
-        # Pro tips: remember to take care of the time embeddings!
-    
+
+        # A default setting: time_embed_dim = 4 times of base_channels
+        self.time_embed_dim = base_channels * 4
+        self.time_embed = TimestepEmbedding(self.time_embed_dim)
+
+        # The first initial conv
+        self.in_conv = nn.Conv2d(self.in_channels,self.base_channels,kernel_size=3,padding=1)
+
+        # Each down blocks with the current layer's channel dim
+        self.down_blocks = nn.ModuleList() 
+        self.downsamples = nn.ModuleList()
+        self.down_attentions = nn.ModuleList()
+        self.up_blocks = nn.ModuleList()
+        self.upsamples = nn.ModuleList()
+        self.up_attentions = nn.ModuleList()
+
+
+        in_ch = base_channels
+        resolution = image_size
+
+
+        # Down Samples
+        for level, mult in enumerate(channel_mult):
+            out_ch = base_channels * mult
+
+            level_blocks = nn.ModuleList()
+            level_attentions = nn.ModuleList()
+
+            for _ in range(num_res_blocks):
+                block = ResBlock(
+                    in_ch,
+                    out_ch,
+                    self.time_embed_dim,
+                    self.dropout,
+                    self.use_scale_shift_norm
+                )
+
+            if resolution in attention_resolutions:
+                level_attentions.append(AttentionBlock(out_ch, num_heads))
+            else:
+                level_attentions.append(nn.Identity())
+
+            level_blocks.append(block)
+
+            in_ch = out_ch
+
+            self.down_blocks.append(level_blocks)
+            self.down_attentions.append(level_attentions)
+
+
+            if level < len(channel_mult) - 1:
+                self.downsamples.append(Downsample(in_ch))
+                resolution = resolution // 2
+
+        # Midcoder
+        self.middle_block = ResBlock(
+        in_channels=in_ch,
+        out_channels=in_ch,
+        time_embed_dim=self.time_embed_dim,
+        dropout=dropout,
+        use_scale_shift_norm=use_scale_shift_norm,
+    )
+
+        # Upsamples
+        for level, mult in enumerate(reversed(channel_mult)):
+            out_ch = base_channels * mult
+
+            level_blocks = nn.ModuleList()
+            level_attentions = nn.ModuleList()
+
+            for _ in range(num_res_blocks):
+                block = ResBlock(
+                    in_ch+out_ch,
+                    out_ch,
+                    self.time_embed_dim,
+                    self.dropout,
+                    self.use_scale_shift_norm
+                )
+
+            if resolution in attention_resolutions:
+                level_attentions.append(AttentionBlock(out_ch, num_heads))
+            else:
+                level_attentions.append(nn.Identity())
+
+                level_blocks.append(block)
+
+                in_ch = out_ch
+
+            self.up_blocks.append(level_blocks)
+            self.up_attentions.append(level_attentions)
+
+
+            if level < len(channel_mult) - 1:
+                self.upsamples.append(Upsample(in_ch))
+                resolution = resolution * 2
+
     def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
-        """
-        TODO: Implement the forward pass of the unet
-        
+        """        
         Args:
             x: Input tensor of shape (batch_size, in_channels, height, width)
                This is typically the noisy image x_t
@@ -102,8 +193,47 @@ class UNet(nn.Module):
         Returns:
             Output tensor of shape (batch_size, out_channels, height, width)
         """
+        time_emb = self.time_embed(t)
+        skips = []
 
-        raise NotImplementedError
+        # Down Sample Half
+        h = self.in_conv(x)
+
+        for level, level_blocks in enumerate(self.down_blocks):
+            level_attentions = self.down_attentions[level]
+            for block, attention in zip(level_blocks, level_attentions):
+                h = block(h, time_emb)
+                h = attention(h)
+                skips.append(h)
+
+            if level < len(self.channel_mult) - 1:
+                h = self.downsamples[level](h)
+
+                
+
+        
+
+
+        # Mid Coder
+        h = self.middle_block(h, time_emb)
+
+        # Upsample Half
+        for level, level_blocks in enumerate(self.up_blocks):
+            level_attentions = self.up_attentions[level]
+            for block, attention in zip(level_blocks, level_attentions):
+                skip = skips.pop()
+                h = torch.cat([h, skip], dim = 1)
+                h = block(h, time_emb)
+                        
+            if level < len(self.channel_mult) - 1:
+                h = self.upsamples(h)
+
+        self.out_norm = GroupNorm32(32, self.base_channels)
+        self.out_conv = nn.Conv2d(self.base_channels, self.out_channels, kernel_size=3, padding=1)
+        h = F.silu(self.out_norm(h))
+        return self.out_conv(h)
+            
+        
 
 
 def create_model_from_config(config: dict) -> UNet:
@@ -130,6 +260,7 @@ def create_model_from_config(config: dict) -> UNet:
         num_heads=model_config['num_heads'],
         dropout=model_config['dropout'],
         use_scale_shift_norm=model_config['use_scale_shift_norm'],
+        image_size=data_config['image_size'],
     )
 
 
