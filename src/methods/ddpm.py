@@ -103,7 +103,9 @@ class DDPM(BaseMethod):
         """
         eps_pred = self.model(x_t, t)
         # beta / sqrt(1 - alpha_cumprod)
-        coef = self._extract(self.betas, t, x_t / self._extract(self.sqrt_one_minus_alphas_cumprod, t, x_t))
+        beta_t = self._extract(self.betas, t, x_t)
+        denom = self._extract(self.sqrt_one_minus_alphas_cumprod, t, x_t)
+        coef = beta_t / denom
         # 1/sqrt(alpha) * (x_t - beta / sqrt(1 - alpha_cumprod) * eps_pred)
         mean = self._extract(self.sqrt_recip_alphas, t, x_t) * (x_t - coef * eps_pred)
 
@@ -142,7 +144,7 @@ class DDPM(BaseMethod):
                 (batch_size,),
                 step,
                 device=self.device,
-                dytpe = torch.long
+                dtype = torch.long
             )
             x_t = self.reverse_process(x_t, t)
 
