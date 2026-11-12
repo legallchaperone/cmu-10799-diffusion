@@ -237,8 +237,11 @@ def generate_samples(
     if use_ema:
         ema.apply_shadow()
 
-    samples = None
-    # TODO: sample with your method.sample()
+    samples = method.sample(
+        batch_size = num_samples,
+        image_shape = image_shape,
+        **sampling_kwargs,
+    )
 
     if use_ema:
         ema.restore()
@@ -260,8 +263,11 @@ def save_samples(
         save_path: File path to save the image grid.
         num_samples: Number of samples, used to calculate grid layout.
     """
-
-    raise NotImplementedError
+    samples = samples.detach().clamp(-1.0, 1.0)
+    samples = unnormalize(samples)
+    nrow = int(math.ceil(math.sqrt(num_samples)))
+    save_image(samples.cpu(), save_path, nrow = nrow)
+    
 
 
 def train(

@@ -11,19 +11,19 @@ data:
 
 # TODO: build your model architecture, feel free to add or exclude any of these options
 model:
-  base_channels: # int
-  channel_mult: # list of int [1, 2, 2, 4]
-  num_res_blocks: # TODO
-  attention_resolutions: # list of int
-  num_heads: # int
-  dropout: # float
-  use_scale_shift_norm: # bool
+  base_channels: 128 # int
+  channel_mult: [1,2,2,4] # 64 -> 32 -> 16 -> 8
+  num_res_blocks: 2 # TODO
+  attention_resolutions: [16] # list of int
+  num_heads: 4 # int
+  dropout: 0.1 # float
+  use_scale_shift_norm: true # bool
 
 # TODO: your training hyperparameters, feel free to add or exclude any of these options
 training:
-  batch_size: # int
-  learning_rate: # float
-  weight_decay: # float
+  batch_size: 128 # int
+  learning_rate: [1,2,2,4] # float
+  weight_decay: 2 # float
   betas: # list of float
   ema_decay: # float
   ema_start: # int # This is the start iter to use EMA during sampling at training time, as using EMA at the beginning may not be very meaningful
@@ -36,9 +36,9 @@ training:
 
 # TODO: your ddpm algorithm hyperparameters, feel free to add or exclude any of these options
 ddpm:
-  num_timesteps: # int
-  beta_start: # float
-  beta_end: # float
+  num_timesteps: 1000 # int
+  beta_start: 1e-4 # float
+  beta_end: 0.02 # float
 
 sampling:
   num_steps: # int

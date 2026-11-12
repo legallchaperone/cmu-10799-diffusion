@@ -25,6 +25,8 @@ What you need to implement:
 import os
 import sys
 import argparse
+import math
+import time
 from datetime import datetime
 
 import yaml
@@ -32,7 +34,7 @@ import torch
 from tqdm import tqdm
 
 from src.models import create_model_from_config
-from src.data import save_image
+from src.data import save_image, unnormalize, create_dataloader_from_config
 from src.methods import DDPM
 from src.utils import EMA
 
@@ -67,7 +69,11 @@ def save_samples(
         num_samples: Number of samples, used to calculate grid layout.
     """
 
-    raise NotImplementedError
+    samples = samples.detach().clamp(-1.0, 1.0)
+    samples = unnormalize(samples)
+    nrow = int(math.ceil(math.sqrt(num_samples)))
+    save_image(samples.cpu(), save_path, nrow = nrow)
+    
 
 
 def main():
@@ -166,7 +172,7 @@ def main():
             else:
                 for i in range(samples.shape[0]):
                     img_path = os.path.join(args.output_dir, f"{sample_idx:06d}.png")
-                    save_samples(samples, img_path, 1)
+                    save_samples(samples[i:i + 1], img_path, 1)
                     sample_idx += 1
 
             remaining -= batch_size
@@ -183,7 +189,7 @@ def main():
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             args.output = f"samples_{timestamp}.png"
 
-        save_samples(all_samples, args.output, nrow=8)
+        save_samples(all_samples, args.output, all_samples.shape[0])
         print(f"Saved grid to {args.output}")
     else:
         print(f"Saved {args.num_samples} individual images to {args.output_dir}")

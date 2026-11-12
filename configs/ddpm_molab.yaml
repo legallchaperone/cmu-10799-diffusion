@@ -1,0 +1,67 @@
+# DDPM config for molab (1x RTX Pro 6000, ~96GB)
+# Usage (in a molab notebook cell):
+#   !python train.py --method ddpm --config configs/ddpm_molab.yaml
+#
+# NOTE: write floats in scientific notation as 1.0e-4 (not 1e-4) --
+# PyYAML parses "1e-4" as a string.
+
+data:
+  dataset: "celeba"
+  root: "./data/celeba"          # HF cache dir; dataset is downloaded here on first run
+  from_hub: true
+  repo_name: "electronickale/cmu-10799-celeba64-subset"
+  image_size: 64
+  channels: 3
+  num_workers: 8                 # lower if molab gives you fewer CPU cores
+  pin_memory: true
+  augment: true                  # random horizontal flip
+
+model:
+  base_channels: 128
+  channel_mult: [1, 2, 2, 4]     # 64 -> 32 -> 16 -> 8
+  num_res_blocks: 2
+  attention_resolutions: [16]
+  num_heads: 4
+  dropout: 0.1
+  use_scale_shift_norm: true
+
+training:
+  batch_size: 256                # plenty of memory on 96GB; drop to 128 if anything looks off
+  learning_rate: 2.0e-4
+  weight_decay: 0.0
+  betas: [0.9, 0.999]
+  ema_decay: 0.9999
+  ema_start: 2000                # EMA is useless early in training
+  gradient_clip_norm: 1.0
+  num_iterations: 100000
+  log_every: 100
+  sample_every: 5000             # full 1000-step DDPM sampling is slow, don't do it too often
+  save_every: 10000
+  num_samples: 64                # 8x8 grid
+
+ddpm:
+  num_timesteps: 1000
+  beta_start: 1.0e-4
+  beta_end: 0.02
+
+sampling:
+  num_steps: 1000
+  sampler: "ddpm"
+
+infrastructure:
+  seed: 42
+  device: "cuda"
+  num_gpus: 1
+  mixed_precision: true          # fp16 autocast + GradScaler; set false if you see NaN loss
+  compile_model: false
+
+checkpoint:
+  dir: "./checkpoints"           # copy these out periodically if molab storage isn't persistent
+  resume: null
+
+logging:
+  dir: "./logs"
+  wandb:
+    enabled: true                # run `wandb login` (or set WANDB_API_KEY) first; false to disable
+    project: "cmu-10799-diffusion"
+    entity: null
