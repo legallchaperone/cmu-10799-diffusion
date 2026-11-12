@@ -84,7 +84,7 @@ class DDPM(BaseMethod):
         x_t = self.forward_process(x_0, t, eps)  # compute loss includes a forward pass first
         eps_pred = self.model(x_t, t)  # predict noise
         loss = F.mse_loss(eps_pred, eps)
-        return loss, {"mse": loss.item()}
+        return loss, {"loss": loss.item()}  # train.py reads metrics['loss'] for the progress bar
 
     # =========================================================================
     # Reverse process (sampling)
