@@ -28,7 +28,8 @@ class DDPM(BaseMethod):
         self. beta_start = beta_start
         self. beta_end = beta_end
 
-        betas = torch.linspace(beta_start, beta_end, self.num_timesteps, dtype=torch.float32)
+        # 直接建在目标 device 上：train.py 只把 UNet 移到了 GPU，这些 buffer 没人帮你搬
+        betas = torch.linspace(beta_start, beta_end, self.num_timesteps, dtype=torch.float32, device=device)
         alphas = 1.0 - betas
         alphas_cumprod = torch.cumprod(alphas, dim=0)
 
@@ -154,7 +155,8 @@ class DDPM(BaseMethod):
     # =========================================================================
 
     def to(self, device: torch.device) -> "DDPM":
-        super().to(device)
+        # BaseMethod.to 只搬 self.model；nn.Module.to 会把 model 和所有 buffer 一起搬
+        nn.Module.to(self, device)
         self.device = device
         return self
 

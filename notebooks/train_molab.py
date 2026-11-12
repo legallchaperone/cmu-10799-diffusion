@@ -35,7 +35,11 @@ def _(mo):
 def _(Path):
     # ① 配置：按需修改
     REPO_URL = "https://github.com/legallchaperone/cmu-10799-diffusion.git"
-    WORK = Path.cwd() / "cmu-10799-diffusion"
+    # 如果当前目录（或上一级）已经是仓库就直接用，否则 clone 到 ./cmu-10799-diffusion
+    WORK = next(
+        (d for d in (Path.cwd(), Path.cwd().parent) if (d / "train.py").exists()),
+        Path.cwd() / "cmu-10799-diffusion",
+    )
     CONFIG = "configs/ddpm_molab.yaml"
     LOG_FILE = WORK / "train.out"
     PID_FILE = WORK / "train.pid"
@@ -127,7 +131,9 @@ def _(
 ):
     mo.stop(not start_btn.value)
 
-    if running_pid() is not None:
+    if not (WORK / "train.py").exists():
+        _msg = f"`{WORK}` 里还没有代码：先点 **② Setup**，确认输出里 git clone 成功，再点 Start。"
+    elif running_pid() is not None:
         _msg = f"已经在训练了（pid {running_pid()}），没有重复启动。"
     else:
         _cmd = [sys.executable, "-u", "train.py", "--method", "ddpm", "--config", CONFIG]
